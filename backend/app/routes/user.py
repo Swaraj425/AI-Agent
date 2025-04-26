@@ -42,8 +42,9 @@ async def get_profile(user: dict = Depends(get_current_user)):
 
     return JSONResponse(content=response_data, headers={"Cache-Control": "no-store"})
 
+
 @router.patch("/update")
-@router.patch("/update")
+
 async def update_user(
     name: str = Form(None),
     email: str = Form(None),

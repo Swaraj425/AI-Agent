@@ -33,7 +33,7 @@ async def fetch_news(idea: str):
     headlines = [article["title"] for article in articles if "title" in article]
     return headlines
 
-# 1. Idea Validation Logic
+# 1. Idea Validation Logic  
 async def validate_idea_logic(idea: str):
     news = await fetch_news(idea)
     news_text = "\n".join([f"- {article}" for article in news])

@@ -27,7 +27,8 @@ async def login(user: UserLogin):
     if not db_user or not hash.verify_password(user.password, db_user["password"]):
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
-    token = jwt.create_access_token({"sub": user.email})
+    token = jwt.create_access_token(db_user)
+
 
     return {"access_token": token, "token_type": "bearer", "msg": "Login successful"}
 
