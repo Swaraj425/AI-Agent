@@ -9,6 +9,7 @@ import {
 import { RiChatNewLine } from "react-icons/ri";
 import robat from '../assets/robat.jpg'
 import IntroductionMessage from "./Indtroduction";
+import Home from '../Home'
 
 axios.interceptors.request.use(
     (config) => {
@@ -39,6 +40,8 @@ const ChatInterface = () => {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [currentChat, setCurrentChat] = useState([]);
     const [message, setMessage] = useState("");
+    const [loadingMessage, setLoadingMessage] = useState(false); // Add this state
+
     const [currentStep, setCurrentStep] = useState("idea-validate");
     const [introductionSent, setIntroductionSent] = useState(false);
     const [nextStepName, setNextStepName] = useState(""); // Store the name of the next step
@@ -77,7 +80,7 @@ const ChatInterface = () => {
         "financial-forecast",
         "competitive-analysis",
         "investor-email",
-        "tagline-name"
+        "tagline-name",
     ];
 
     useEffect(() => {
@@ -128,14 +131,15 @@ const ChatInterface = () => {
         }
 
         try {
+            setLoadingMessage(true);
             let chatId = activeChatId;
             if (isNewChat && !activeChatId) {
                 try {
                     const chatRes = await axios.post(
                         "http://127.0.0.1:8000/chats/new",
-                        { 
+                        {
                             title: msg.substring(0, 30) + "...",
-                            initial_message: msg 
+                            initial_message: msg
                         },
                         {
                             headers: {
@@ -174,7 +178,7 @@ const ChatInterface = () => {
             // Handle response
             const aiMessage = res.data.response;
             const nextStep = res.data.next_step;
-        
+
             // Update the chat state with AI response only
             setCurrentChat((prev) => [
                 ...prev,
@@ -191,16 +195,33 @@ const ChatInterface = () => {
                 setNextStepName(nextStep); // Ensure the next step name is updated
             }
 
-            console.log("Next Step from Backend:", nextStep);
-
             // Fetch chat sessions again after AI response
             await fetchChatSessions();
         } catch (error) {
             console.error("Error sending message to backend", error);
         } finally {
             setIsSending(false);
+            setLoadingMessage(false);
         }
     };
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth < 768) {
+                setSidebarOpen(false); // Close sidebar on small devices
+            } else {
+                setSidebarOpen(true); // Open sidebar on larger devices
+            }
+        };
+    
+        handleResize(); // Set initial state based on screen size
+        window.addEventListener("resize", handleResize);
+    
+        return () => {
+            window.removeEventListener("resize", handleResize);
+        };
+    }, []);
+    
 
     const handleKeyPress = (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -211,13 +232,13 @@ const ChatInterface = () => {
 
     const handleNextStep = async () => {
         if (!nextStepName) return;
-    
+
         // Add the next step name as a user message
         const userMessage = `Let's proceed with the ${nextStepName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} step`;
         setCurrentChat((prev) => [...prev, { type: "user", content: userMessage }]);
-    
+
         // Send the next step name to the backend
-        await sendMessageToBackend(userMessage, currentStep, true);
+        await sendMessageToBackend(userMessage, nextStepName, true);
 
     };
 
@@ -272,6 +293,21 @@ const ChatInterface = () => {
 
         fetchUserProfile();
     }, []);
+
+    const handleLogout = async () => {
+        try {
+            // Call the backend logout route
+            await axios.post("http://127.0.0.1:8000/user/logout");
+    
+            // Clear the token from local storage
+            localStorage.removeItem("accessToken");
+    
+            // Redirect the user to the login page
+            window.location.href = <Home />;
+        } catch (error) {
+            console.error("Error logging out", error);
+        }
+    };
 
     const handleEditProfile = async () => {
         const token = localStorage.getItem("accessToken");
@@ -354,159 +390,39 @@ const ChatInterface = () => {
 
     const renderMessageContent = (content) => {
         if (!content) return null;
-
-        // Helper function to detect if a line is a heading
-        const isHeading = (line) => {
-            return /^(#+ |Step \d+:|Important:|Note:|Tips?:|Key Points?:|Summary:|Conclusion:)/i.test(line.trim());
-        };
-
-        // Helper function to detect if a line starts a code block
-        const isCodeBlock = (line) => {
-            return line.trim().startsWith('```') || line.trim().startsWith('`');
-        };
-
-        // Split content into lines and group them by type
+    
+        // Check if the content is a JSON array (pitch deck structure)
+        try {
+            const parsedContent = JSON.parse(content);
+            if (Array.isArray(parsedContent)) {
+                // Format the pitch deck sections into readable text
+                return (
+                    <div className="space-y-4">
+                        {parsedContent.map((section, index) => (
+                            <div key={index} className="mb-4">
+                                <h3 className="text-lg font-bold">{section.title}</h3>
+                                <p>{section.content}</p>
+                                {section.visual_suggestion && (
+                                    <span className="text-gray-500">{section.visual_suggestion}</span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
+        } catch (e) {
+            // If content is not JSON, continue with default rendering
+        }
+    
+        // Default rendering for non-JSON content
         const lines = content.split('\n');
-        let formattedContent = [];
-        let currentBlock = [];
-        let inCodeBlock = false;
-        let codeLanguage = '';
-        let numberCounter = 1;
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            const trimmedLine = line.trim();
-
-            // Handle code blocks
-            if (isCodeBlock(trimmedLine)) {
-                if (!inCodeBlock) {
-                    inCodeBlock = true;
-                    codeLanguage = trimmedLine.slice(3).trim();
-                    if (currentBlock.length > 0) {
-                        formattedContent.push({ type: 'text', content: currentBlock });
-                        currentBlock = [];
-                    }
-                } else {
-                    inCodeBlock = false;
-                    formattedContent.push({ type: 'code', content: currentBlock.join('\n'), language: codeLanguage });
-                    currentBlock = [];
-                }
-                continue;
-            }
-
-            if (inCodeBlock) {
-                currentBlock.push(line);
-                continue;
-            }
-
-            // Handle headings
-            if (isHeading(trimmedLine)) {
-                if (currentBlock.length > 0) {
-                    formattedContent.push({ type: 'text', content: currentBlock });
-                    currentBlock = [];
-                }
-                formattedContent.push({ type: 'heading', content: trimmedLine });
-                continue;
-            }
-
-            // Handle lists
-            const isNumberedListItem = /^\d+[\.\)]/.test(trimmedLine);
-            const isBulletListItem = /^[-•\*]/.test(trimmedLine);
-
-            if (isNumberedListItem || isBulletListItem) {
-                if (currentBlock.length > 0 && !currentBlock[0].match(/^[-•\*\d+[\.\)]]/)) {
-                    formattedContent.push({ type: 'text', content: currentBlock });
-                    currentBlock = [];
-                }
-
-                currentBlock.push({
-                    text: trimmedLine,
-                    number: isNumberedListItem ? numberCounter++ : null
-                });
-
-                if (i === lines.length - 1 || !lines[i + 1].trim().match(/^[-•\*\d+[\.\)]]/)) {
-                    formattedContent.push({ 
-                        type: isNumberedListItem ? 'numbered-list' : 'bullet-list', 
-                        content: currentBlock
-                    });
-                    currentBlock = [];
-                }
-                continue;
-            }
-
-            // Regular text
-            if (trimmedLine !== '') {
-                currentBlock.push(trimmedLine);
-            } else if (currentBlock.length > 0) {
-                formattedContent.push({ type: 'text', content: currentBlock });
-                currentBlock = [];
-            }
-        }
-
-        // Add any remaining content
-        if (currentBlock.length > 0) {
-            formattedContent.push({ type: 'text', content: currentBlock });
-        }
-
-        // Render the formatted content
         return (
-            <div className="space-y-4">
-                {formattedContent.map((block, index) => {
-                    switch (block.type) {
-                        case 'heading':
-                            return (
-                                <h3 key={index} className="text-lg font-semibold mt-6 mb-2 text-gray-800 dark:text-gray-200">
-                                    {block.content}
-                                </h3>
-                            );
-                        case 'numbered-list':
-                            return (
-                                <div key={index} className="pl-8 space-y-2">
-                                    {block.content.map((item, i) => {
-                                        const text = item.text.replace(/^\d+[\.\)]\s*/, '').trim();
-                                        return (
-                                            <div key={i} className="flex items-start">
-                                                <span className={`mr-4 font-medium w-4 text-right ${darkMode ? "text-gray-300" : "text-black"}`}>
-                                                    {item.number}.
-                                                </span>
-                                                <span className="flex-1">{text}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            );
-                        case 'bullet-list':
-                            return (
-                                <ul key={index} className="list-disc pl-8 space-y-2">
-                                    {block.content.map((item, i) => (
-                                        <li key={i} className="pl-2">
-                                            {item.text.replace(/^[-•\*]\s*/, '')}
-                                        </li>
-                                    ))}
-                                </ul>
-                            );
-                        case 'code':
-                            return (
-                                <pre key={index} className="bg-gray-800 text-gray-100 rounded-lg p-4 overflow-x-auto">
-                                    <code className="text-sm font-mono">
-                                        {block.content}
-                                    </code>
-                                </pre>
-                            );
-                        case 'text':
-                            return (
-                                <div key={index} className="space-y-2">
-                                    {block.content.map((paragraph, i) => (
-                                        <p key={i} className="text-base leading-relaxed">
-                                            {paragraph}
-                                        </p>
-                                    ))}
-                                </div>
-                            );
-                        default:
-                            return null;
-                    }
-                })}
+            <div className="space-y-2">
+                {lines.map((line, index) => (
+                    <p key={index} className="text-base leading-relaxed">
+                        {line}
+                    </p>
+                ))}
             </div>
         );
     };
@@ -517,17 +433,17 @@ const ChatInterface = () => {
             console.error("No token found. Please log in again.");
             return;
         }
-    
+
         try {
             const res = await axios.get("http://127.0.0.1:8000/chats/user", {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
             });
-            
+
             if (res.data) {
                 // Sort chats by created_at in descending order (newest first)
-                const sortedChats = res.data.sort((a, b) => 
+                const sortedChats = res.data.sort((a, b) =>
                     new Date(b.created_at) - new Date(a.created_at)
                 );
                 setChatSessions(sortedChats);
@@ -546,26 +462,26 @@ const ChatInterface = () => {
             console.error("No token found. Please log in again.");
             return;
         }
-    
+
         if (!chatId) {
             console.error("No chat ID provided");
             return;
         }
-    
+
         try {
             const res = await axios.get(`http://127.0.0.1:8000/chats/${chatId}`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
             });
-            
+
             if (res.data && res.data.messages) {
                 // Transform messages to match the current chat format
                 const formattedMessages = res.data.messages.map(msg => ({
                     type: msg.sender,  // 'user' or 'ai'
                     content: msg.text
                 }));
-                
+
                 setCurrentChat(formattedMessages);
                 setActiveChatId(chatId);
                 setShowIntroduction(false);
@@ -599,6 +515,10 @@ const ChatInterface = () => {
         }
     }, [currentChat, nextStepName]);
 
+    useEffect(() => {
+        console.log("Loading Message State:", loadingMessage);
+    }, [loadingMessage]);
+
     return (
         <div className={`w-screen h-screen overflow-hidden flex ${darkMode ? "bg-black text-white" : "bg-white text-black"}`}>
             {/* Sidebar */}
@@ -617,7 +537,10 @@ const ChatInterface = () => {
                     {chatSessions.map((chat) => (
                         <button
                             key={chat._id}
-                            onClick={() => loadChatMessages(chat._id)}
+                            onClick={() => {
+                                loadChatMessages(chat._id);  
+                            }
+                            }
                             className={`w-full text-left py-2 px-4 ${darkMode ? 'hover:bg-zinc-800' : 'hover:bg-gray-300'}  ${activeChatId === chat._id ? `${darkMode ? 'bg-zinc-800 text-white' : 'bg-gray-300 text-black    '} ` : ""}`}
                         >
                             {chat.title || "New Chat"}
@@ -691,13 +614,18 @@ const ChatInterface = () => {
                     ) : (
                         currentChat.map((msg, index) => (
                             <div key={index} className={`flex flex-col ${msg.type === "user" ? "items-end" : "items-start"}`}>
-                                <div className={`max-w-[70%] rounded-lg p-4 ${
-                                    msg.type === "user" 
-                                        ? (darkMode ? "bg-[#1e1e1e] text-white" : "bg-blue-200 text-black") 
-                                        : (darkMode ? "bg-[#0b0b0b] text-white" : "bg-gray-200 text-black")
-                                }`}>
+                                {/* User or AI Message */}
+                                <div
+                                    className={`max-w-[70%] rounded-lg p-4 ${msg.type === "user"
+                                            ? darkMode
+                                                ? "bg-[#1e1e1e] text-white"
+                                                : "bg-blue-200 text-black"
+                                            : darkMode
+                                                ? "bg-[#0b0b0b] text-white"
+                                                : "bg-gray-200 text-black"
+                                        }`}
+                                >
                                     {Array.isArray(msg.content) ? (
-                                        // Render structured pitch deck response
                                         <div className="space-y-4">
                                             {msg.content.map((section, idx) => (
                                                 <div key={idx} className="mb-4">
@@ -708,27 +636,40 @@ const ChatInterface = () => {
                                             ))}
                                         </div>
                                     ) : (
-                                        // Render regular text content
                                         renderMessageContent(msg.content)
                                     )}
                                 </div>
-                                {msg.type === "ai" && showNextStepButton && index === currentChat.length - 1 && (
+
+                                {/* Skeleton Loader for AI Response */}
+                                {msg.type === "user" && index === currentChat.length - 1 && loadingMessage && (
+                                    <div className={`flex flex-col items-start mr-auto ${darkMode ? 'bg-[#0b0b0b]' : 'bg-gray-300'}  p-10 space-y-2 mt-2`}>
+                                        <div className={`w-[58rem]  h-4 ${darkMode ? 'bg-[#2f2e2e]' : 'bg-gray-400'}  rounded animate-pulse`}></div>
+                                        <div className={`w-[58rem] mt-2 h-4 ${darkMode ? 'bg-[#2f2e2e]' : 'bg-gray-400'}  rounded animate-pulse`}></div>
+                                        <div className={`w-[58rem] mt-2 h-4 ${darkMode ? 'bg-[#2f2e2e]' : 'bg-gray-400'}  rounded animate-pulse`}></div>
+                                    </div>
+                                )}
+
+                                {msg.type === "ai" && showNextStepButton && index === currentChat.length - 1 && nextStepName && (
                                     <button
                                         onClick={handleNextStep}
-                                        className={`mt-2 px-4 py-2 rounded-lg transition-colors ${
-                                            darkMode 
-                                                ? "bg-blue-600 hover:bg-blue-700 text-white" 
-                                                : "bg-blue-500 hover:bg-blue-600 text-white"
-                                        }`}
+                                        className={`mt-2 px-4 py-2 cursor-pointer rounded-lg transition-colors ${darkMode
+                                            ? "bg-blue-600 hover:bg-blue-700 text-white"
+                                            : "bg-blue-500 hover:bg-blue-600 text-white"
+                                            }`}
                                     >
-                                        Move to {nextStepName ? nextStepName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : "Next Step"}
+                                        Move to {nextStepName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                                     </button>
                                 )}
+
+
+
                             </div>
                         ))
                     )}
                     <div ref={messagesEndRef} />
                 </div>
+
+
 
                 {/* Input Area */}
                 <div className={`border-t p-4 ${darkMode ? "border-gray-700 bg-black" : "border-gray-300 bg-gray-100"}`}>
@@ -908,15 +849,7 @@ const ChatInterface = () => {
                             <div className="space-y-4">
                                 <h3 className={`text-lg font-medium ${darkMode ? "text-white" : "text-black"}`}>Are you sure you want to logout?</h3>
                                 <button
-                                    onClick={async () => {
-                                        try {
-                                            await axios.post("http://127.0.0.1:8000/user/logout");
-                                            localStorage.removeItem("accessToken");
-                                            window.location.href = "/login";
-                                        } catch (error) {
-                                            console.error("Error logging out", error);
-                                        }
-                                    }}
+                                    onClick={() => { handleLogout() }}
                                     className={`w-full px-4 py-2 rounded-lg transition ${darkMode ? "bg-red-500 text-white hover:bg-red-600" : "bg-red-500 text-white hover:bg-red-600"} cursor-pointer`}
                                 >
                                     Logout

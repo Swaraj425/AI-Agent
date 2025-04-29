@@ -144,7 +144,14 @@ async def reset_password(data: ResetPassword):
 # ✅ Logout Route
 @router.post("/logout")
 async def logout():
-    response = JSONResponse(content={"msg": "Logged out successfully"})
-    response.delete_cookie(key="access_token")
-    response.delete_cookie(key="refresh_token")
-    return response
+    """
+    Logout the user by invalidating the token on the client side.
+    This route simply informs the client to clear the token.
+    """
+    return JSONResponse(
+        content={"msg": "Logout successful"},
+        headers={
+            "Cache-Control": "no-store",  # Prevent caching of the response
+            "Pragma": "no-cache"          # Ensure no caching
+        }
+    )

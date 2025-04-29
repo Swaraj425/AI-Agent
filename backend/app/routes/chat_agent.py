@@ -12,7 +12,7 @@ from app.services.ai_agent_serives import (
     go_to_market_logic,
     pitch_deck_logic,
     business_model_logic,
-    financial_forecast_logic,
+    financial_forecast_logic,   
     competitive_analysis_logic,
     investor_email_logic,
     tagline_name_generator_logic,
@@ -29,10 +29,12 @@ STEP_FLOW = [
     "mvp-planning",
     "go-to-market",
     "pitch-deck",
+    "business-model",
     "financial-forecast",
     "competitive-analysis",
     "investor-email",
-    "tagline-name"
+    "tagline-name",
+    "completed"
 ]   
 
 @router.post("/chat-agent")
@@ -61,7 +63,9 @@ async def chat_agent_handler(
                 {"_id": ObjectId(chat_id)},
                 {"$set": {"idea_context": idea}}
             )
-            print(f"Saved idea_context: {idea}")
+
+        # Determine the current step from the database if not provided
+        step = chat.get("next_step", step)
 
         # Step: AI logic based on the current step
         ai_response = ""
@@ -105,9 +109,13 @@ async def chat_agent_handler(
             ai_response = await tagline_name_generator_logic(idea)
             next_step = "completed"
 
+        elif step == "completed":
+            ai_response = "🎉 Congratulations! You have successfully completed all the steps. If you have a new idea, click on 'New Chat' to start again."
+            next_step = ""
+
         else:
-            ai_response = "Step not found. Please restart."
-            next_step = "introduction"
+            ai_response = ""
+            next_step = ""
 
         def format_response_text(text):
             # Remove repeated numbers like "1.1", "2.2", etc.
