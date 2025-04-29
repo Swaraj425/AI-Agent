@@ -3,4 +3,11 @@ uvicorn
 sqlalchemy
 python-dotenv
 passlib[bcrypt]
-pyjwt
+python-jose
+httpx
+requests
+fastapi-mail
+python-multipart
+email-validator
+bson
+pydantic
