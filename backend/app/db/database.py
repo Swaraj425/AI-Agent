@@ -16,7 +16,7 @@ if not MONGODB_URL:
 # Connect to MongoDB
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URL)
 db = client[settings.DATABASE_NAME]  # Make sure the DB name matches the one in your connection string
-print("MONGODB_URL:", MONGODB_URL)
+# print("MONGODB_URL:", MONGODB_URL)
 
 # ✅ Collections
 user_collection = db["users"]              # already used for registration/login
