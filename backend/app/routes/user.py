@@ -44,7 +44,6 @@ async def get_profile(user: dict = Depends(get_current_user)):
 
 
 @router.patch("/update")
-
 async def update_user(
     name: str = Form(None),
     email: str = Form(None),

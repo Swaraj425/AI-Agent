@@ -269,7 +269,7 @@ const LandingPage = () => {
 
                         {/* Home Section */}
                         <div className="py-32">
-                            <section id="home" className="mt-20 text-center h-[50rem]">
+                            <section id="home" className="mb-20 text-center py-32">
                                 <div className="flex flex-col md:flex-col items-center justify-center">
                                     <div className="md:w-1/2">
                                         <h2 className={`text-4xl font-bold ${theme === "light" ? "text-black" : "text-white"}  mb-4`}>
@@ -320,7 +320,7 @@ const LandingPage = () => {
                                 </div>
                             </section>
 
-                            <section id="features" className="mt-16 py-32">
+                            <section id="features" className="mt-44 py-32">
                                 <h3 className={`text-3xl font-bold text-center ${theme === "light" ? "text-black" : "text-white"} mb-12`}>
                                     Transform Your Startup Journey
                                 </h3>

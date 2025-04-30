@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     DATABASE_NAME: str
     OPENROUTER_API_KEY: str
     OPENROUTER_API_URL: str
-    GNEWS_API_KEY: str
+    GNEWS_API_KEY: str  
     CORS_ORIGINS: str
     SECRET_KEY: str
     ALGORITHM: str
